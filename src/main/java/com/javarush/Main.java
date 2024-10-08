@@ -47,7 +47,7 @@ public class Main {
 
         mapper = new ObjectMapper();
 
-        List<City> allCities = fetchData();
+        List<City> allCities = fetchCitiesFromDb();
         List<CityCountry> preparedData = transformData(allCities);
         pushToRedis(preparedData);
 
@@ -142,7 +142,7 @@ public class Main {
         }).collect(Collectors.toList());
     }
 
-    private static List<City> fetchData() {
+    private static List<City> fetchCitiesFromDb() {
         try (Session session = sessionFactory.getCurrentSession()) {
             List<City> allCities = new ArrayList<>();
             session.beginTransaction();
