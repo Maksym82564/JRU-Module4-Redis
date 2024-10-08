@@ -76,13 +76,12 @@ public class Main {
         try (StatefulRedisConnection<String, String> connection = redisClient.connect()) {
             RedisStringCommands<String, String> sync = connection.sync();
             for (CityCountry cityCountry : data) {
-                try {
-                    sync.set(String.valueOf(cityCountry.getId()), mapper.writeValueAsString(cityCountry));
-                } catch (JsonProcessingException e) {
-                    logger.error("Couldn't push CityCountry to Redis");
-                    throw new DatabaseException("Couldn't push CityCountry to Redis");
-                }
+                sync.set(String.valueOf(cityCountry.getId()), mapper.writeValueAsString(cityCountry));
             }
+        }
+        catch (JsonProcessingException e) {
+            logger.error("Couldn't push CityCountry to Redis");
+            throw new DatabaseException("Couldn't push CityCountry to Redis");
         }
     }
 
