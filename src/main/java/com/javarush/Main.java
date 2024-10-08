@@ -30,30 +30,37 @@ import static java.util.Objects.nonNull;
 public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
-    private final SessionFactory sessionFactory;
-    private final RedisClient redisClient;
+    private static SessionFactory sessionFactory;
+    private static RedisClient redisClient;
 
-    private final ObjectMapper mapper;
+    private static ObjectMapper mapper;
 
-    private final CityDAO cityDAO;
-    private final CountryDAO countryDAO;
+    private static CityDAO cityDAO;
+    private static CountryDAO countryDAO;
 
     public static void main(String[] args) {
-        Main main = new Main();
-        List<City> allCities = main.fetchData(main);
-        List<CityCountry> preparedData = main.transformData(allCities);
-        main.pushToRedis(preparedData);
+        sessionFactory = HibernateUtil.getSessionFactory();
+        redisClient = RedisUtil.getClient();
 
-        main.sessionFactory.getCurrentSession().close();
+        cityDAO = new CityDAO(sessionFactory);
+        countryDAO = new CountryDAO(sessionFactory);
+
+        mapper = new ObjectMapper();
+
+        List<City> allCities = fetchData();
+        List<CityCountry> preparedData = transformData(allCities);
+        pushToRedis(preparedData);
+
+        sessionFactory.getCurrentSession().close();
 
         List<Integer> ids = List.of(3, 240, 123, 4, 189, 89, 150, 118, 10, 220);
 
         long startRedis = System.currentTimeMillis();
-        main.testRedisData(ids);
+        readFromRedis(ids);
         long stopRedis = System.currentTimeMillis();
 
         long startMysql = System.currentTimeMillis();
-        main.testMysqlData(ids);
+        readFromSql(ids);
         long stopMysql = System.currentTimeMillis();
 
         long redisTime = stopRedis - startRedis;
@@ -62,20 +69,10 @@ public class Main {
         logger.info("Redis time: {} ms", redisTime);
         logger.info("Mysql time: {} ms", mysqlTime);
 
-        main.shutdown();
+        shutdown();
     }
 
-    public Main() {
-        sessionFactory = HibernateUtil.getSessionFactory();
-        redisClient = RedisUtil.getClient();
-
-        cityDAO = new CityDAO(sessionFactory);
-        countryDAO = new CountryDAO(sessionFactory);
-
-        mapper = new ObjectMapper();
-    }
-
-    private void pushToRedis(List<CityCountry> data) {
+    private static void pushToRedis(List<CityCountry> data) {
         try (StatefulRedisConnection<String, String> connection = redisClient.connect()) {
             RedisStringCommands<String, String> sync = connection.sync();
             for (CityCountry cityCountry : data) {
@@ -86,11 +83,10 @@ public class Main {
                     throw new DatabaseException("Couldn't push CityCountry to Redis");
                 }
             }
-
         }
     }
 
-    private void testRedisData(List<Integer> ids) {
+    private static void readFromRedis(List<Integer> ids) {
         try (StatefulRedisConnection<String, String> connection = redisClient.connect()) {
             RedisStringCommands<String, String> sync = connection.sync();
             for (Integer id : ids) {
@@ -105,7 +101,7 @@ public class Main {
         }
     }
 
-    private void testMysqlData(List<Integer> ids) {
+    private static void readFromSql(List<Integer> ids) {
         try (Session session = sessionFactory.getCurrentSession()) {
             session.beginTransaction();
             for (Integer id : ids) {
@@ -116,7 +112,7 @@ public class Main {
         }
     }
 
-    private List<CityCountry> transformData(List<City> cities) {
+    private static List<CityCountry> transformData(List<City> cities) {
         return cities.stream().map(city -> {
             CityCountry res = new CityCountry();
             res.setId(city.getId());
@@ -146,23 +142,23 @@ public class Main {
         }).collect(Collectors.toList());
     }
 
-    private List<City> fetchData(Main main) {
-        try (Session session = main.sessionFactory.getCurrentSession()) {
+    private static List<City> fetchData() {
+        try (Session session = sessionFactory.getCurrentSession()) {
             List<City> allCities = new ArrayList<>();
             session.beginTransaction();
-            List<Country> countries = main.countryDAO.getAll();
+            List<Country> countries = countryDAO.getAll();
 
-            int totalCount = main.cityDAO.getTotalCount();
+            int totalCount = cityDAO.getTotalCount();
             int step = 500;
             for (int i = 0; i < totalCount; i += step) {
-                allCities.addAll(main.cityDAO.getItems(i, step));
+                allCities.addAll(cityDAO.getItems(i, step));
             }
             session.getTransaction().commit();
             return allCities;
         }
     }
 
-    private void shutdown() {
+    private static void shutdown() {
         if (nonNull(sessionFactory)) {
             sessionFactory.close();
         }
