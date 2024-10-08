@@ -80,7 +80,7 @@ public class Main {
             }
         }
         catch (JsonProcessingException e) {
-            logger.error("Couldn't push CityCountry to Redis");
+            logger.error("Couldn't push CityCountry to Redis", e);
             throw new DatabaseException("Couldn't push CityCountry to Redis");
         }
     }
@@ -93,7 +93,7 @@ public class Main {
                 try {
                     mapper.readValue(value, CityCountry.class);
                 } catch (JsonProcessingException e) {
-                    logger.error("Couldn't parse CityCountry from Redis");
+                    logger.error("Couldn't parse CityCountry from Redis", e);
                     throw new DatabaseException("Couldn't parse CityCountry from Redis");
                 }
             }
